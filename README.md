@@ -26,14 +26,10 @@ This repository supports the manuscript:
 - **Raw sequencing data** is publicly available in the NCBI Short Read Archive (SRA) under BioProject accession number:  
   [**PRJNA1287629**]
 
-- The complete R workspace and associated data files will be made available upon:
-  - Acceptance of the manuscript, or  
-  - Reasonable request to the corresponding author.
 
 
 ## **Contact**
 
-If you have questions, need assistance with the scripts, or face issues accessing data:
+The raw data will be provided as an R workspace and associated files upon manuscript acceptance or upon reasonable request to the first author, who can be reached at bhattacharya.dhruba95@gmail.com.
 
-📧 **Dhruba Bhattacharya**  
-📨 *bhattacharya.dhruba95@gmail.com*
+If you have questions or concerns with these files, or trouble downloading them, please contact *bhattacharya.dhruba95@gmail.com*.
