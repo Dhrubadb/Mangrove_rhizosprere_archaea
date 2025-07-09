@@ -1,0 +1,1130 @@
+# Load required libraries
+library(ape)
+library(data.table)
+library(phyloseq)
+library(DECIPHER)
+library(phangorn)
+library(ggplot2)
+library(ggpubr)
+library(reshape2)
+library(SummarizedExperiment)
+library(clusterProfiler)
+library(edgeR)
+library(enrichplot)
+library(tidybulk)
+library(curatedMetagenomicData)
+library(ggtree)
+library(ggtreeExtra)
+library(patchwork)
+library(MicrobiomeProfiler)
+library(MicrobiotaProcess)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(ALDEx2)
+library(coin)
+library(tibble)
+library(microeco)           
+library(file2meco)
+
+
+
+####################
+
+# Load the QIIME2 output files
+otuqza <- "C:/Users/bhatt/Downloads/tableNoFilt.qza"
+taxaqza <- "C:/Users/bhatt/Downloads/taxonomyNoFilt.qza"
+tree <- treeio::read.tree("C:/NEW_Sundarban_archaea/sequence_raw/treeNoFilt.qza")
+mapfile <- "C:/NEW_Sundarban_archaea/sequence_raw/sundarban_archea_metadata.txt"
+
+# Make MicrobiotaProcess object
+mpse <- mp_import_qiime2(otuqza = otuqza, taxaqza = taxaqza, mapfilename = mapfile)
+
+mpse2 <- mpse %>%
+  dplyr::filter(!Phylum %in% c("p__") &
+                  !Kingdom %in% "d__Bacteria" &
+                  !Family %in% "f__Mitochondria" &
+                  !Family %in% "f__Chloroplast" &
+                  !Genus %in% "g__Mitochondria" &
+                  !Genus %in% "g__Chloroplast" &
+                  !Kingdom %in% "d__Eukaryota" &
+                  !Phylum %in% "p_Ascomycota"
+                
+                
+  ) %>%
+  mp_filter_taxa(.abundance = Abundance, min.abun = 1, min.prop = 0.1)                  
+mpse2
+otutree(mpse2) <- tree
+mpse2
+
+
+##################Rarefaction##############
+
+cols <- c(
+  "#1f77b4",  # muted blue
+  "#ff7f0e",  # orange
+  "#2ca02c",  # green
+  "#d62728",  # red
+  "#9467bd",  # purple
+  "#8c564b",  # brown
+  "#e377c2",  # pink
+  "#7f7f7f",  # gray
+  "#2A52BE",  # cerulean blue
+  "#F19CBB",  # amaranth pink
+  "#40826D",  # viridian green
+  "#F4C430",  # saffron gold
+  "#65000B",  # rosewood
+  "#CCCCFF",  # periwinkle
+  "#66023C",  # tyrian purple
+  "#43B3AE"   # verdigris
+)
+mpse2 %<>%
+  mp_rrarefy(.abundance=Abundance) %>%
+  mp_cal_rarecurve(.abundance=RareAbundance, chunks=500)
+
+
+
+#####################rarefactioncurve################
+
+p_rare <- mpse2 %>%
+  mp_plot_rarecurve(
+    .rare = RareAbundanceRarecurve,
+    .alpha = c(Observe, Chao1, ACE, Shanon),
+  ) +
+  scale_color_manual(values = cols) +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),   # white plot background
+    plot.background = element_rect(fill = "white", color = NA),    # white outer background
+    panel.border = element_rect(color = "black", fill = NA, size = 0.5),  # black border
+    axis.line = element_line(color = "black"),     # black axis lines
+    legend.position = "bottom",
+    legend.direction = "horizontal",                 # arrange legend items horizontally
+    legend.box = "horizontal",                      # allow horizontal box arrangement
+    legend.key.width = unit(0.5, "cm"),
+    legend.key.height = unit(0.5, "cm"),
+    legend.spacing.x = unit(1, "cm"),              # spacing between items
+    legend.text = element_text(size = 10)
+  ) +
+  labs(x = "Number of reads") +
+  guides(color = guide_legend(nrow = 2, byrow = TRUE))  # Spread legend over 2 rows
+
+
+p_rare
+
+ggsave("C:/Users/bhatt/Downloads/rarecurvearch.png", p_rare, 
+       width = 8, height = 5, dpi = 300, units = "in")
+
+###########alpha_diversity#############
+
+mpse2 %<>% mp_cal_alpha(.abundance = RareAbundance)
+colsl <- c("Godkhali" = "#2A52BE", "Kalash" = "#8c564b")  # Replace with your actual group names
+
+p_alpha <- mpse2 %>%
+  mp_plot_alpha(
+    .alpha = c(Observe, Chao1, Shannon),
+    .group = location
+  ) +
+  scale_fill_manual(values = colsl) +
+  scale_color_manual(values = colsl) +
+  theme(
+    legend.position = "bottom",                          # Legend on the side
+    legend.text = element_text(face = "bold",    # Bold + italic
+                               size = 10),              # Adjust font size
+    strip.background = element_rect(colour = NA, fill = "grey"),
+    axis.text.x = element_blank(),                      # Remove x-axis labels
+    axis.ticks.x = element_blank()                      # Remove x-axis ticks
+  )
+p_alpha
+ggsave("C:/Users/bhatt/Downloads/alpha_location.jpg", p_alpha, 
+       width = 8, height = 5, dpi = 300, units = "in" )
+
+colsp <- c("Avicennia officinalis" = "#2ca02c", "Ceriops decandra" = "#F4C430")  # Replace with your actual group names
+
+p_alpha1 <- mpse2 %>%
+  mp_plot_alpha(
+    .alpha = c(Observe, Chao1, Shannon),
+    .group = plant
+  ) +
+  scale_fill_manual(values = colsp) +
+  scale_color_manual(values = colsp) +
+  theme(
+    legend.position = "bottom",                          # Legend on the side
+    legend.text = element_text(face = "bold.italic",    # Bold + italic
+                               size = 10),              # Adjust font size
+    strip.background = element_rect(colour = NA, fill = "grey"),
+    axis.text.x = element_blank(),                      # Remove x-axis labels
+    axis.ticks.x = element_blank()                      # Remove x-axis ticks
+  )
+p_alpha1
+ggsave("C:/Users/bhatt/Downloads/alpha_plant.jpg", p_alpha1, 
+       width = 8, height = 5, dpi = 300, units = "in" )
+
+combined_plot_alpha <- p_alpha / p_alpha1 
+
+combined_plot_alpha
+ggsave("C:/Users/bhatt/Downloads/alpha_combined.png", combined_plot_alpha,
+       width = 8, height = 10, dpi = 300, units = "in")
+
+################relative_abundance#########
+# The relative abundance of all taxonomy for samples will be calculated
+mpse2 %<>% mp_cal_abundance(.abundance = RareAbundance)
+# The relative abundance of all taxonomy for group will be calculated
+mpse2 %<>% mp_cal_abundance(.abundance = RareAbundance, .group = sample_group)
+
+
+rare_abundance_df <- assay(mpse2, "RareAbundance")
+rare_abundance_df <- as.data.frame(rare_abundance_df)
+
+
+fgenus <- mpse2 %>%
+  mp_plot_abundance(
+    .abundance = RareAbundance,
+    .group = plant,
+    taxa.class = Genus,
+    topn = 10,
+    plot.group = TRUE
+  ) +
+  xlab(NULL) +
+  ylab("Relative abundance (%)") +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(size = 8, face = "bold.italic")  # Stylize plant names
+  )
+ppgenus2 <- mpse2 %>%
+  mp_plot_abundance(
+    .abundance = RareAbundance,
+    .group = location,
+    relative = TRUE,
+    taxa.class = Genus,
+    topn = 10
+  ) +
+  xlab(NULL) +
+  ylab("Relative abundance (%)") +
+  theme(
+    legend.key.width = unit(0.5, "cm"),
+    legend.key.height = unit(0.5, "cm"),
+    legend.text = element_text(size=9),
+    axis.text.x = element_text(size = 8, face = "bold")
+  )
+
+
+rel_abund_plot <- aplot::plot_list(ppgenus2, fgenus, widths=c(15, 1))
+rel_abund_plot
+ggsave("C:/Users/bhatt/Downloads/rel_abunda_Gen_arch1.png", rel_abund_plot, 
+       width = 8, height = 6, dpi = 300, units = "in" )
+
+###############topphyla###############
+
+P41 <- mpse2 %>%
+  mp_plot_abundance(
+    .abundance = RareAbundance,
+    .group = location,
+    relative = TRUE,
+    taxa.class = Phylum,
+    topn = 5
+  ) +
+  xlab(NULL) +
+  ylab("Relative abundance (%)") +
+  theme(
+    legend.key.width = unit(0.5, "cm"),
+    legend.key.height = unit(0.5, "cm"),
+    legend.text = element_text(size=9),
+    axis.text.x = element_text(size = 8, face = "bold")
+  )
+P41
+
+P42 <- mpse2 %>%
+  mp_plot_abundance(
+    .abundance = RareAbundance,
+    .group = plant,
+    taxa.class = Phylum,
+    topn = 5,
+    plot.group = TRUE
+  ) +
+  xlab(NULL) +
+  ylab("Relative abundance (%)") +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(size = 10, face = "bold.italic")  # Stylize plant names
+  )
+P42
+rel_abund_plot_p <- aplot::plot_list(P41, P42, widths=c(4, 1))
+rel_abund_plot_p
+ggsave("C:/Users/bhatt/Downloads/rel_abund_top5phyla.png", rel_abund_plot_p, 
+       width = 8, height = 5, dpi = 300, units = "in" )
+
+# Extract the Phylum data from the nested list
+
+library(dplyr)  # Make sure dplyr is loaded
+
+t5phylum_data <- P41[["data"]]
+t5phylum_data
+
+t5phylum_cleaned <- t5phylum_data %>%
+  dplyr::select(-nodeClass, -RareAbundance)
+t5phylum_cleaned
+
+write.csv(t5phylum_cleaned, file = "C:/Users/bhatt/Downloads/Top5phylum.csv", row.names = FALSE)
+
+
+p4 <- mpse2 %>%
+  mp_plot_abundance(
+    .abundance=RareAbundance,
+    .group= Sample,
+    taxa.class = Phylum,
+    topn = 10,
+    relative = TRUE,
+    plot.group = TRUE
+  )
+p4
+
+##################
+
+ggsave("C:/Users/bhatt/Downloads/rel_abundp.png", p4, 
+       width = 6, height = 4, dpi = 300, units = "in" )
+
+# Extract the Phylum data from the nested list
+t10p_data <- p4[["data"]]
+t10p_data
+
+write.csv(t10p_data, file = "C:/Users/bhatt/Downloads/Top10phylum_data.csv", row.names = FALSE)
+
+
+#######################topphyla_in_sample_groups#################
+
+library(dplyr)
+library(ggplot2)
+
+#Summarize & calculate percentages
+phylum_percent <- t5phylum_cleaned %>%
+  group_by(sample_group, Phylum) %>%
+  summarise(total_abundance = sum(RelRareAbundanceBySample), .groups = "drop") %>%
+  group_by(sample_group) %>%
+  mutate(percentage = total_abundance / sum(total_abundance) * 100) %>%
+  filter(percentage > 0) %>%  # remove 0% segments
+  mutate(label = paste0(round(percentage, 1), "%"))
+
+# Create a color palette that automatically assigns colors
+# Define specific colors for phyla (customize as needed)
+phyla_colors <- c(
+    "p__Crenarchaeota" = "#43B3AE",
+    "p__Halobacterota" = "#65000B",
+    "p__un_k__Unknown" = "#2A52BE"
+  )
+
+# Plot
+pt5<-ggplot(phylum_percent, aes(x = "", y = percentage, fill = Phylum)) +
+  geom_col(color = "black", width = 1) +
+  coord_polar(theta = "y") +
+  geom_text(aes(label = label), position = position_stack(vjust = 0.5),
+            size = 3, color = "white", fontface = "bold") +
+  facet_wrap(~sample_group) +
+  scale_fill_manual(values = phyla_colors, drop = FALSE) +
+  theme_void() +
+  labs(title = "",
+       fill = "Phylum") +
+  theme(
+    strip.text = element_text(face = "bold", size = 11),
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 9),
+    legend.key.size = unit(0.5, "cm"),
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    legend.position = "right"
+  )
+pt5
+ggsave("C:/Users/bhatt/Downloads/top5phyla_Samplegroup.png", pt5, 
+       width = 8, height = 5, dpi = 300, units = "in" )
+
+###########################top_genera_accross_sample_groups###################
+
+g41 <- mpse2 %>%
+  mp_plot_abundance(
+    .abundance=RareAbundance,
+    .group= sample_group,
+    taxa.class = Genus,
+    topn = 20,
+    relative = TRUE,
+    plot.group = TRUE
+  )
+g41
+
+
+# Extract the Phylum data from the nested list
+t20genus_cleaned <- t20genus_data %>%
+  dplyr::select(-c(nodeClass, RareAbundanceBySample))
+t20genus_cleaned
+write.csv(t20genus_cleaned, file = "Top20Genus_data.csv", row.names = FALSE)
+
+
+####################
+library(tidyr)
+library(knitr)
+  
+# Create a wide-format table for clarity
+genus_percent_table <- genus_percent %>%
+  pivot_wider(names_from = sample_group, values_from = Percent, values_fill = 0) %>%
+  arrange(Genus)
+  
+# View in R console
+kable(genus_percent_table, digits = 2, caption = "Genus-wise Relative Abundance (%) per Sample Group")
+
+install.packages("openxlsx")
+library(openxlsx)
+  
+# Create and write workbook
+wb <- createWorkbook()
+  addWorksheet(wb, "Genus Abundance")
+  writeData(wb, sheet = "Genus Abundance", genus_percent_table)
+  saveWorkbook(wb, file = "C:/Users/bhatt/Downloads/genus_relative_abundance.xlsx", overwrite = TRUE) 
+  
+  ################
+topgenus<-ggplot(genus_percent, aes(x = reorder(Genus, Percent), y = Percent, fill = Genus)) +
+  geom_bar(stat = "identity", color = "black", size = 0.3) +
+  geom_text(aes(label = paste0(round(Percent, 2), "%")), hjust = -0.1, size = 3) +
+  coord_flip() +
+  facet_wrap(~sample_group) +
+  theme_classic(base_size = 14) +
+  theme(
+  strip.background = element_rect(fill = "grey90", color = NA),
+      strip.text = element_text(face = "bold", size = 13),
+      legend.position = "none",
+      axis.title.y = element_blank(),
+      axis.text.y = element_text(size = 10),
+      axis.title.x = element_text(size = 12),
+      axis.text.x = element_text(size = 10)
+    ) +
+    labs(y = "Relative Abundance (%)")
+topgenus
+ggsave("C:/Users/bhatt/Downloads/topgenus_samplegroup.png", topgenus, 
+       width = 17, height = 10, dpi = 300, units = "in" )
+
+
+##########ordination##############
+
+
+###################hellinger transform for ordination##############
+
+# hellinger transform
+mpse2 %<>%
+  mp_decostand(
+    .abundance = Abundance,
+    method = "hellinger"
+  )
+
+# distmethod
+# "unifrac", "wunifrac", "manhattan", "euclidean", "canberra", "bray", "kulczynski" ...(vegdist, dist)
+#we are using bray
+
+mpse2 %<>%
+  mp_cal_dist(
+    .abundance = hellinger,
+    distmethod = "bray"
+  )
+# PCoA analysis
+mpse2 %<>%
+  mp_cal_pcoa(
+    .abundance = hellinger,
+    distmethod = "bray"
+  )
+pcoaplot1 <- mpse2 %>%
+  mp_plot_ord(
+    .ord = pcoa,
+    .group = plant,
+    .starshape = location,
+    .color = location,
+    ellipse = TRUE,
+    show.legend = FALSE
+  ) +
+  scale_color_manual(
+    values = colsp
+  ) +
+  scale_fill_manual(values = colsp) +
+  scale_size_continuous(
+    range = c(1, 3),
+    guide = guide_legend(override.aes = list(starshape = 15))
+  ) +
+  theme(
+    legend.key.width = unit(0.8, "cm"),
+    legend.key.height = unit(0.9, "cm"),
+    legend.text = element_text(size= 10),
+    legend.title = element_text(size= 12)
+  )
+pcoaplot1
+
+# first and third principal co-ordinates
+pcoaplot2 <- mpse2 %>%
+  mp_plot_ord(
+    .ord = pcoa,
+    .group = plant,
+    .starshape = location,
+    .color = location,
+    ellipse = TRUE,
+    .dim = c(1, 3),
+    show.legend = FALSE
+  ) +
+  scale_color_manual(
+    values = colsp
+  ) +
+  scale_fill_manual(
+    values = colsp
+  ) +
+  
+  theme(
+    legend.key.width = unit(0.5, "cm"),
+    legend.key.height = unit(0.5, "cm"),
+    legend.text = element_text(size = 9),
+    legend.title = element_text(size = 10)
+  )
+pcoa<-(pcoaplot1 | pcoaplot2)
+
+ggsave("C:/Users/bhatt/Downloads/pcoa1.png", pcoa, 
+       width = 12, height = 4, dpi = 300, units = "in" )
+
+
+pdist2 <- mpse2 %>%
+  mp_plot_dist(
+    .distmethod = bray,
+    .group = plant,
+    group.test = TRUE
+  ) +
+  scale_color_manual(
+    values = c("#2ca02c", "violetred3", "#F4C430")
+  ) +
+  scale_fill_manual(
+    values = c("#2ca02c", "violetred3", "#F4C430")
+  )
+
+pdist2
+ggsave("C:/Users/bhatt/Downloads/pdist1.png", pdist2, 
+       width = 6, height = 7, dpi = 300, units = "in" )
+
+###PERMANOVA########
+mpse2 %<>% mp_adonis(.abundance = hellinger, distmethod = "bray",
+                     .formula = ~sample_group, permutation = 9999, action = "add")
+mpse2 %>% mp_extract_internal_attr(name=adonis) %>% mp_fortify()
+
+###CCA########
+
+mpse3 <- mpse2 %>%
+  mp_cal_cca(
+    .abundance = RareAbundance,
+    .formula = ~Cr + Ni + Cu + Pb + Cd + Co + Zn + Fe + As + pH + salinity + D.O. + Ammonia + Silicate + Phosphate + Nitrite + Nitrate + Sulphate + Naphthalene + Phenanthrene + Anthracene + Fluoranthene + Pyrene + Chrysene + Benzfluoranthene + Chlorpyrifos
+  )
+
+
+mpse3
+
+mpse3 %>%
+  mp_extract_internal_attr(name=cca) %>%
+  anova()
+
+
+
+# fits environmental vectors onto cca
+mpse3 %<>%
+  mp_envfit(
+    .ord = cca,
+    .env = c(
+      Cr, Ni, Cu, Pb, Cd, Co, Zn, Fe, As, pH, 
+      salinity, Ammonia, Silicate, Phosphate, Nitrite, Nitrate, 
+      Sulphate, Naphthalene, Phenanthrene, Anthracene, Fluoranthene, 
+      Pyrene, Chrysene, Benzfluoranthene, Chlorpyrifos, D.O.
+    ),
+    action = "add",
+    permutation = 9999
+  )
+
+
+# Extract the result of envfit analysis
+mpse3 %>% mp_extract_internal_attr(name=cca_envfit) %>% mp_fortify()
+
+cca_envfit_data <- mpse3 %>%
+  mp_extract_internal_attr(name = cca_envfit) %>%
+  mp_fortify()
+# View the first few rows to confirm the structure
+head(cca_envfit_data)
+
+# Save the data as a CSV file
+write.csv(cca_envfit_data, "C:/Users/bhatt/Downloads/cca_envfitarch_data.csv", row.names = FALSE)
+
+
+p_CCA <- mpse3 %>%
+  mp_plot_ord(
+    .ord = cca,
+    .group = plant,
+    .starshape = location,
+    show.side = FALSE,
+    show.envfit = TRUE,
+    colour = "black",
+    bg.colour = "white"
+  ) +
+  scale_starshape_manual(values=c(1, 13)) +
+  scale_fill_manual(
+    values = colsp,
+    guide = guide_legend(
+      override.aes = list(starshape=15)
+    )
+  ) +
+  scale_size_continuous(
+    range = c(1, 3),
+    guide = guide_legend(override.aes = list(starshape=15))
+  ) +
+  theme(
+    legend.key.height = unit(0.8, "cm"),
+    legend.key.width = unit(0.8, "cm"),
+    legend.spacing.y = unit(0.02, "cm"),
+    legend.text = element_text(size = 9),
+    legend.title = element_text(size = 10),
+  )
+print(p_CCA)
+
+
+# visualization with envfit result
+p1 <- mpse3 %>%
+  mp_plot_ord(
+    .ord = cca,
+    .group = plant,
+    .starshape = location,
+    show.side = FALSE,
+    show.envfit = TRUE,
+    colour = "black",
+    bg.colour = "white"
+  ) +
+  scale_starshape_manual(values=c(1, 13, 15)) +
+  scale_fill_manual(
+    values = colsp,
+    guide = guide_legend(
+      override.aes = list(starshape=15)
+    )
+  ) +
+  scale_size_continuous(
+    range = c(1, 3),
+    guide = guide_legend(override.aes = list(starshape=15))
+  ) +
+  theme(
+    legend.key.height = unit(0.8, "cm"),
+    legend.key.width = unit(0.3, "cm"),
+    legend.spacing.y = unit(0.02, "cm"),
+    legend.text = element_text(size = 9),
+    legend.title = element_text(size = 12),
+  )
+
+print(p1)
+ggsave(
+  filename = "C:/Users/bhatt/Downloads/Archaea_cca.jpg", 
+  plot = p1, 
+  width = 6, height = 5, 
+  dpi = 300
+)
+
+
+########################Metadata############
+
+######################metal_conc._plot################
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(readr)
+library(RColorBrewer)
+
+metadata <- read_csv("C:/Users/bhatt/Downloads/metadata_archaea.csv")
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Define metal variables
+metal_vars <- c("Cr", "Ni", "Cu", "Pb", "Cd", "Co", "Zn", "Fe", "As")
+
+# Reshape data to long format for metal concentrations
+df_long <- metadata %>% 
+  pivot_longer(cols = all_of(metal_vars), names_to = "metal", values_to = "conc")
+
+# Statistical analysis: two‐way ANOVA (location and plant) for each metal
+anova_out <- df_long %>% 
+  group_by(metal) %>% 
+  do({
+    mod <- aov(conc ~ location * plant, data = .)
+    anovatab <- summary(mod)[[1]]
+    # Extract p-value for the interaction term if available; if not, then for plant effect.
+    p_val <- if("location:plant" %in% rownames(anovatab)) anovatab["location:plant", "Pr(>F)"] else anovatab["plant", "Pr(>F)"]
+    data.frame(p_val = p_val)
+  }) %>% 
+  ungroup() 
+
+# Create significance labels based on p-values
+anova_out <- anova_out %>% 
+  mutate(sig = case_when(
+    p_val < 0.001 ~ "***",
+    p_val < 0.01  ~ "**",
+    p_val < 0.05  ~ "*",
+    TRUE          ~ ""
+  ))
+
+# Create an annotation data frame for each metal:
+# For each metal, get the maximum concentration to position the label
+annotation_df <- df_long %>%
+  group_by(metal) %>%
+  summarise(max_conc = max(conc, na.rm = TRUE)) %>%
+  left_join(anova_out, by = "metal")
+
+# Print ANOVA results
+print(anova_out)
+
+# Define custom colors for plants (adjust colors as needed)
+plant_levels <- unique(metadata$plant)
+custom_colors <- setNames(
+  c("#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e", "#e6ab02")[1:length(plant_levels)],
+  plant_levels
+)
+
+annotation_df <- df_long %>%
+  group_by(metal, location) %>%
+  summarise(max_conc = max(conc, na.rm = TRUE), .groups = "drop") %>%
+  left_join(anova_out, by = "metal")
+
+mp12 <- ggplot(df_long, aes(x = location, y = conc, fill = plant)) +
+  geom_violin(position = position_dodge(width = 0.9), alpha = 0.6, trim = TRUE) +
+  geom_boxplot(width = 0.15, position = position_dodge(width = 0.9), outlier.shape = NA) +
+  facet_wrap(~ metal, scales = "free_y") +
+  geom_text(data = annotation_df,
+            aes(x = location, y = max_conc * 1.05, label = sig),
+            inherit.aes = FALSE,
+            color = "black", size = 6, fontface = "bold") +
+  scale_fill_manual(values = custom_colors, guide = guide_legend(title = NULL)) +
+  labs(x = "", y = "Concentration (mg/kg)") +
+  coord_cartesian(ylim = c(0, NA)) +
+  theme_classic(base_size = 12) +
+  theme(
+    strip.background = element_rect(fill = "grey90", color = NA),
+    strip.text = element_text(face = "bold", size = 13),
+    legend.position = "bottom",
+    axis.text.y = element_text(size = 10),
+    axis.title.x = element_text(size = 12),
+    axis.text.x = element_text(size = 10),
+    legend.text = element_text(size = 12, face = "italic"),
+    legend.key.size = unit(0.6, "cm"),
+    legend.spacing.x = unit(0.3, "cm")
+  )
+
+print(mp12)
+
+# Save plot
+ggsave(
+  filename = "C:/Users/bhatt/Downloads/Archaea_metal_final1.png", 
+  plot = mp12, 
+  width = 10, height = 6, 
+  dpi = 300
+)
+
+
+##################PAH_conc._plot#############
+
+
+# Load data
+metadata <- read_csv("C:/Users/bhatt/Downloads/metadata_archaea.csv")
+
+# Define PAH variables (make sure these column names exactly match your CSV)
+pah_vars <- c("Naphthalene", "Phenanthrene", "Anthracene", "Fluoranthene", 
+              "Pyrene", "Chrysene", "Benzfluoranthene", "Chlorpyrifos")
+
+# Reshape data to long format for PAH concentrations
+df_pah_long <- metadata %>% 
+  pivot_longer(cols = all_of(pah_vars), names_to = "compound", values_to = "conc")
+
+# Two-way ANOVA per compound
+anova_pah <- df_pah_long %>%
+  group_by(compound) %>%
+  do({
+    mod <- aov(conc ~ location * plant, data = .)
+    anovatab <- summary(mod)[[1]]
+    p_val <- if("location:plant" %in% rownames(anovatab)) anovatab["location:plant", "Pr(>F)"] else anovatab["plant", "Pr(>F)"]
+    data.frame(p_val = p_val)
+  }) %>%
+  ungroup() %>%
+  mutate(sig = case_when(
+    p_val < 0.001 ~ "***",
+    p_val < 0.01  ~ "**",
+    p_val < 0.05  ~ "*",
+    TRUE          ~ ""
+  ))
+
+# Create annotation dataframe for positioning significance
+annotation_pah <- df_pah_long %>%
+  group_by(compound, location) %>%
+  summarise(max_conc = max(conc, na.rm = TRUE), .groups = "drop") %>%
+  left_join(anova_pah, by = "compound")
+
+# Custom colors for plants (edit or extend if needed)
+plant_levels <- unique(metadata$plant)
+custom_colors_pah <- setNames(
+  c("#4DAF4A", "#984EA3", "#FF7F00", "#A65628", "#E41A1C", "#377EB8")[1:length(plant_levels)],
+  plant_levels
+)
+
+# Create PAH plot
+p_pah <- ggplot(df_pah_long, aes(x = location, y = conc, fill = plant)) +
+  geom_violin(position = position_dodge(width = 0.9), alpha = 0.6, trim = TRUE) +
+  geom_boxplot(width = 0.15, position = position_dodge(width = 0.9), outlier.shape = NA) +
+  facet_wrap(~ compound, scales = "free_y") +
+  geom_text(data = annotation_pah,
+            aes(x = location, y = max_conc * 1.05, label = sig),
+            inherit.aes = FALSE,
+            color = "black", size = 6, fontface = "bold") +
+  scale_fill_manual(values = custom_colors_pah, guide = guide_legend(title = NULL)) +
+  labs(x = "", y = "Concentration (mg/kg)") +
+  coord_cartesian(ylim = c(0, NA)) +
+  theme_classic(base_size = 12) +
+  theme(
+    strip.background = element_rect(fill = "grey90", color = NA),
+    strip.text = element_text(face = "bold", size = 13),
+    legend.position = "bottom",
+    axis.text.y = element_text(size = 10),
+    axis.title.x = element_text(size = 12),
+    axis.text.x = element_text(size = 10),
+    legend.text = element_text(size = 12, face = "italic"),
+    legend.key.size = unit(0.6, "cm"),
+    legend.spacing.x = unit(0.3, "cm")
+  )
+
+# Display plot
+print(p_pah)
+
+# Save plot
+ggsave(
+  filename = "C:/Users/bhatt/Downloads/Archaea_PAHs1_final1.png", 
+  plot = p_pah, 
+  width = 10, height = 6, 
+  dpi = 300
+)
+
+
+
+#########Physicochemical_parameters_conc._plot##################
+
+# Load data
+metadata <- read_csv("C:/Users/bhatt/Downloads/metadata_archaea_N.csv")
+
+# Define environmental variables
+env_vars <- c("Ammonia", "Silicate", "Phosphate", "Nitrite", "Nitrate", "Sulphate")
+
+# Reshape data to long format
+df_env_long <- metadata %>%
+  pivot_longer(cols = all_of(env_vars), names_to = "compound", values_to = "conc")
+
+# Two-way ANOVA per compound
+anova_env <- df_env_long %>%
+  group_by(compound) %>%
+  do({
+    mod <- aov(conc ~ location * plant, data = .)
+    anovatab <- summary(mod)[[1]]
+    p_val <- if("location:plant" %in% rownames(anovatab)) anovatab["location:plant", "Pr(>F)"] else anovatab["plant", "Pr(>F)"]
+    data.frame(p_val = p_val)
+  }) %>%
+  ungroup() %>%
+  mutate(sig = case_when(
+    p_val < 0.001 ~ "***",
+    p_val < 0.01  ~ "**",
+    p_val < 0.05  ~ "*",
+    TRUE          ~ ""
+  ))
+
+# Create annotation dataframe for positioning significance
+annotation_env <- df_env_long %>%
+  group_by(compound, location) %>%
+  summarise(max_conc = max(conc, na.rm = TRUE), .groups = "drop") %>%
+  left_join(anova_env, by = "compound")
+
+# Custom colors for plants (reuse from before)
+plant_levels <- unique(metadata$plant)
+custom_colors_env <- setNames(
+  c("#E7298A", "#A6761D", "#1A9C44", "#D95F02", "#7570B3", "#66A61E", "#A6761D")[1:length(plant_levels)],
+  plant_levels
+)
+
+# Create environmental variable plot
+p_env <- ggplot(df_env_long, aes(x = location, y = conc, fill = plant)) +
+  geom_violin(position = position_dodge(width = 0.9), alpha = 0.6, trim = TRUE) +
+  geom_boxplot(width = 0.15, position = position_dodge(width = 0.9), outlier.shape = NA) +
+  facet_wrap(~ compound, scales = "free_y") +
+  geom_text(data = annotation_env,
+            aes(x = location, y = max_conc * 1.05, label = sig),
+            inherit.aes = FALSE,
+            color = "black", size = 6, fontface = "bold") +
+  scale_fill_manual(values = custom_colors_env, guide = guide_legend(title = NULL)) +
+  labs(x = "", y = "Concentration (mg/g)") +
+  coord_cartesian(ylim = c(0, NA)) +
+  theme_classic(base_size = 12) +
+  theme(
+    strip.background = element_rect(fill = "grey90", color = NA),
+    strip.text = element_text(face = "bold", size = 13),
+    legend.position = "bottom",
+    axis.text.y = element_text(size = 10),
+    axis.title.x = element_text(size = 12),
+    axis.text.x = element_text(size = 10),
+    legend.text = element_text(size = 12, face = "italic"),
+    legend.key.size = unit(0.6, "cm"),
+    legend.spacing.x = unit(0.3, "cm")
+  )
+
+# Display plot
+print(p_env)
+
+
+# Save plot
+ggsave(
+  filename = "C:/Users/bhatt/Downloads/Archaea_envs_final.png", 
+  plot = p_env, 
+  width = 10, height = 6, 
+  dpi = 300
+)
+
+
+
+#############correlation_plots##########
+
+#################
+
+# Load libraries
+library(tidyverse)
+library(reshape2)
+library(ggplot2)
+
+# Step 1: Read in data
+genus <- read.csv("C:/Users/bhatt/Downloads/genus_table_filtered.csv", row.names = 1, check.names = FALSE)
+metadata1 <- read.csv("C:/Users/bhatt/Downloads/metadata_archaea_N.csv", header = TRUE)
+genus
+# Add SampleID from row names
+genus$SampleID <- rownames(genus)
+
+# Convert to long format (exclude only SampleID)
+genus_long <- pivot_longer(genus, cols = -SampleID, names_to = "Genus", values_to = "Abundance")
+
+# Merge with metadata by matching SampleID
+merged <- left_join(genus_long, metadata1, by = c("SampleID" = "sample_id"))  # <- sample_id must be a column in metadata1
+
+# View merged result
+head(merged)
+# Variable groups
+metal_vars <- c("Cr", "Ni", "Cu", "Pb", "Cd", "Co", "Zn", "Fe", "As")
+pah_vars <- c("Naphthalene", "Phenanthrene", "Anthracene", "Fluoranthene", 
+              "Pyrene", "Chrysene", "Benzfluoranthene", "Chlorpyrifos")
+chem_vars <- c("pH", "salinity", "D.O.", "Ammonia", "Silicate", "Phosphate", 
+               "Nitrite", "Nitrate", "Sulphate")
+
+# Correlation function
+cor_genus_env <- function(data, vars, group_label) {
+  results <- data.frame()
+  for (pl in unique(data$plant)) {
+    sub <- data %>% filter(plant == pl)
+    for (g in unique(sub$Genus)) {
+      g_data <- sub %>% filter(Genus == g)
+      for (var in vars) {
+        vals <- g_data[[var]]
+        if (length(unique(vals)) > 1 && length(unique(g_data$Abundance)) > 1) {
+          test <- suppressWarnings(cor.test(g_data$Abundance, vals, method = "spearman"))
+          results <- rbind(results, data.frame(
+            Plant = pl,
+            Genus = g,
+            Variable = var,
+            rho = unname(test$estimate),
+            p.value = test$p.value,
+            Group = group_label
+          ))
+        }
+      }
+    }
+  }
+  if (nrow(results) == 0) {
+    message("⚠️ No valid correlations found for group: ", group_label)
+  } else {
+    results$adj.p <- p.adjust(results$p.value, method = "fdr")
+  }
+  return(results)
+}
+
+# Run for each group
+res_metals <- cor_genus_env(merged, metal_vars, "Metals")
+res_pahs <- cor_genus_env(merged, pah_vars, "PAHs")
+res_chems <- cor_genus_env(merged, chem_vars, "Chemical")
+
+# Combine and filter significant results
+all_corrs <- bind_rows(res_metals, res_pahs, res_chems)
+sig_corrs <- all_corrs %>% filter(p.value < 0.5)
+sig_corrs
+# Save significant results
+write.csv(sig_corrs, "C:/Users/bhatt/Downloads/sig_genus_env_correlations.csv", row.names = FALSE)
+
+#################
+
+# Load libraries
+library(tidyverse)
+library(ggplot2)
+
+# Combine all significant correlations (assuming you've run res_metals, res_pahs, res_chems)
+sig_corrs <- bind_rows(res_metals, res_pahs, res_chems) %>%
+  filter(p.value < 0.5)
+
+# --- MODIFICATIONS ---
+# Diverging color scale centered at 0
+fill_scale <- scale_fill_gradient2(
+  low = "#567", mid = "blue", high = "gold",
+  midpoint = 0, limit = c(-1, 1), name = "Spearman\nCorrelation"
+)
+  
+# Modify the Genus_Plant to expression for italicizing plant names
+sig_corrs <- sig_corrs %>%
+  mutate(
+    Genus_Plant_expr = paste0(Genus, "~italic('(", Plant, ")')")  # expression-style label
+  )
+plot_corr_heatmap <- function(data, group_name) {
+  group_data <- data %>% filter(Group == group_name)
+  
+  ggplot(group_data, aes(x = Variable, y = Genus_Plant_expr, fill = rho)) +
+    geom_tile(color = "black", linewidth = 0.3) +  # black border
+    fill_scale +
+    pub_theme +
+    labs(
+      title = paste("Significant Correlations –", group_name),
+      x = "", y = ""
+    ) +
+    scale_y_discrete(labels = function(x) parse(text = x))  # italic plant names
+}
+p_pahs <- plot_corr_heatmap(sig_corrs, "PAHs")
+p_metals <- plot_corr_heatmap(sig_corrs, "Metals")
+p_chems <- plot_corr_heatmap(sig_corrs, "Chemical")
+p_pahs
+p_metals
+p_chems
+
+
+ggsave(
+  filename = "C:/Users/bhatt/Downloads/archaea_results/Arch_chem.jpg", 
+  plot = p_chems, 
+  width = 10, height = 6, 
+  dpi = 300
+)
+
+
+##########################picrust2_plot########
+
+# Load libraries
+library(dplyr)
+library(ggplot2)
+library(ALDEx2)
+library(tibble)
+library(patchwork)
+library(readr)
+
+# Read data
+combined <- read.csv("C:/Users/bhatt/Downloads/archaea_picrust_combined_final.csv", header = TRUE)
+
+# Define sample groups by plant species
+avicennia_samples <- c("GA1.1", "GA1.2", "GA2.1", "GA2.2", "KA1.1", "KA1.2", "KA2.1", "KA2.2")
+ceriops_samples   <- c("GC1.1", "GC1.2", "GC2.1", "GC2.2", "KC1.1", "KC1.2", "KC2.1", "KC2.2")
+conds <- c(rep("Avicennia", length(avicennia_samples)), rep("Ceriops", length(ceriops_samples)))
+
+# Function to run ALDEx2 and generate plot
+analyze_and_plot <- function(data_subset, class_label) {
+  message(paste("Processing:", class_label))
+  
+  # Keep only sample columns and round
+  samples <- c(avicennia_samples, ceriops_samples)
+  data_counts <- data_subset[, samples] %>% round()
+  
+  # ALDEx2 input requires matrix of counts
+  aldex_in <- as.matrix(data_counts)
+  
+  # Run ALDEx2 (t-test)
+  aldex_results <- aldex(aldex_in, conds, mc.samples = 128, denom = "all", test = "t")
+  
+  # Add ko_annotation column
+  data_subset <- data_subset %>%
+    mutate(ko_annotation = paste(KO_ID, annotation, sep = ":"))
+  
+  ko_mapping <- data_subset %>%
+    dplyr::select(ko_annotation) %>%
+    mutate(row_name = rownames(data_subset))
+  
+  # Merge KO annotations
+  aldex_results <- aldex_results %>%
+    rownames_to_column("row_name") %>%
+    left_join(ko_mapping, by = "row_name") %>%
+    column_to_rownames("row_name")
+  
+  # Check significant results
+  sig_results <- aldex_results %>%
+    filter(we.eBH < 0.5) %>%
+    arrange(diff.btw)
+  
+  message(paste("Significant features:", nrow(sig_results)))
+  
+  if (nrow(sig_results) == 0) {
+    warning(paste("No significant KOs found for class", class_label))
+    return(NULL)
+  }
+  
+  # Label by group
+  sig_results <- sig_results %>%
+    mutate(group = ifelse(diff.btw > 0, "Avicennia", "Ceriops"),
+           value = abs(diff.btw))
+  
+  # Create plot
+  p <- ggplot(sig_results,
+              aes(x = reorder(ko_annotation, diff.btw),
+                  y = diff.btw, fill = group)) +
+    geom_bar(stat = "identity", width = 0.8) +
+    coord_flip() +
+    labs(
+      x = "",
+      y = expression(Log[2]~Fold~Change~"("~italic("Avicennia")~"/"~italic("Ceriops")~")"),
+      title = paste("Differential Abundance:", class_label)
+    ) +
+    theme_classic() +
+    scale_fill_manual(
+      values = c("Avicennia" = "#2ca02c", "Ceriops" = "#F4C430"),
+      labels = c(
+        "Avicennia" = expression(italic("Avicennia officinalis")),
+        "Ceriops" = expression(italic("Ceriops decandra"))
+      )
+    ) +
+    theme(
+      axis.line = element_line(color = "black"),
+      axis.text.y = element_text(face = "bold", size = 10),
+      plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+      legend.title = element_text(face = "bold"),
+      legend.position = "bottom",
+      plot.background = element_rect(fill = "white")
+    ) +
+    geom_hline(yintercept = 0, linetype = "dashed") +
+    scale_y_continuous(limits = c(-8, 8), breaks = seq(-8, 8, 2))
+  
+  # Save
+  ggsave(paste0(tolower(class_label), "_plot.jpg"), p, width = 12, height = 8, dpi = 300)
+  write.csv(sig_results, paste0(tolower(class_label), "_significant.csv"), row.names = FALSE)
+  
+  return(p)
+}
+
+# Subset based on class
+data_pahd   <- combined[combined$class == "PAHD", ]
+data_mitr <- combined[combined$class == "MITR", ]
+
+# Run and store plots
+plot_pahd   <- analyze_and_plot(data_pd, "PAHD")
+plot_mitr <- analyze_and_plot(data_mitr, "MITR")
+
+# Combine only if both exist
+if (!is.null(plot_pahd) & !is.null(plot_mitr)) {
+  combined_plot <- (plot_mitr / plot_pahd) + 
+    plot_layout(guides = "collect") &
+    theme(legend.position = "right")
+  
+  ggsave("C:/Users/bhatt/Downloads/combined_picrust_plot_italic.png", combined_plot, width = 12, height = 6, dpi = 300)
+  print(combined_plot)
+} else {
+  message("One or both plots were not created due to lack of significant features.")
+}
+
