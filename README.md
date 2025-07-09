@@ -8,19 +8,18 @@ This repository supports the manuscript:
 
 ## **Repository Contents**
 
-- **`Rscript_archaea/`**  
+- **`Rscript_archaea`**  
   Contains R scripts to reproduce all statistical analyses and visualizations.
 
-- **`DB_qiime2_code/`**  
+- **`DB_qiime2_code`**  
   Includes QIIME2 command-line scripts used for data processing and analysis.
 
-- **`All_KO_hits_archaea_picrust2/`**  
+- **`All_KO_hits_archaea_picrust2`**  
   Annotated KEGG Ortholog (KO) hits generated from PICRUSt2 prediction.
 
-- **`Archaea_selected_picrust2/`**  
+- **`Archaea_selected_picrust2`**  
   Selected antimicrobial resistance (AMR) and metal ion transport-related KO hits.
 
----
 
 ## **Data Availability**
 
@@ -31,7 +30,6 @@ This repository supports the manuscript:
   - Acceptance of the manuscript, or  
   - Reasonable request to the corresponding author.
 
----
 
 ## **Contact**
 
