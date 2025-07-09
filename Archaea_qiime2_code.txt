@@ -1,0 +1,63 @@
+#!/bin/bash/ 
+
+
+qiime tools import --type "SampleData[PairedEndSequencesWithQuality]" --input-format PairedEndFastqManifestPhred33V2 --input-path /DATA/Dhruba/New_Run_DB/manifest.tsv --output-path /DATA/Dhruba/New_Run_DB/demuxed.qza
+
+qiime demux summarize --i-data demuxed.qza --o-visualization demuxed.qzv
+
+
+qiime dada2 denoise-paired --i-demultiplexed-seqs demuxed.qza --p-trim-left-f 18 --p-trim-left-r 22 --p-trunc-len-f 145 --p-trunc-len-r 175 --o-table /DATA/Dhruba/New_Run_DB/tableNoFilt.qza --o-representative-sequences repseqsNoFilt.qza --o-denoising-stats denoising-statsNoFilt.qza --p-n-threads 25                       
+
+
+qiime feature-table summarize --i-table tableNoFilt.qza --m-sample-metadata-file metadataArranged.tsv --o-visualization tableNoFilt.qzv
+
+
+qiime feature-table tabulate-seqs --i-data repseqsNoFilt.qza --o-visualization repseqsNoFilt.qzv
+
+qiime metadata tabulate --m-input-file denoising-statsNoFilt.qza --o-visualization denoising-statsNoFilt.qzv
+
+qiime rescript get-silva-data --p-version '138.1' --p-target 'SSURef_NR99' --o-silva-sequences silva-138.1-ssu-nr99-rna-seqs.qza --o-silva-taxonomy silva-138.1-ssu-nr99-tax.qza
+
+qiime rescript reverse-transcribe --i-rna-sequences silva-138.1-ssu-nr99-rna-seqs.qza --o-dna-sequences silva-138.1-ssu-nr99-seqs.qza
+
+qiime rescript cull-seqs --i-sequences silva-138.1-ssu-nr99-seqs.qza --o-clean-sequences silva-138.1-ssu-nr99-seqs-cleaned.qza
+
+qiime rescript filter-seqs-length-by-taxon \
+    --i-sequences silva-138.1-ssu-nr99-seqs-cleaned.qza \
+    --i-taxonomy silva-138.1-ssu-nr99-tax.qza \
+    --p-labels Archaea Bacteria Eukaryota \
+    --p-min-lens 900 1200 1400 \
+    --o-filtered-seqs silva-138.1-ssu-nr99-seqs-filt.qza \
+    --o-discarded-seqs silva-138.1-ssu-nr99-seqs-discard.qza
+    
+qiime rescript dereplicate \
+    --i-sequences silva-138.1-ssu-nr99-seqs-filt.qza  \
+    --i-taxa silva-138.1-ssu-nr99-tax.qza \
+    --p-mode 'uniq' \
+    --o-dereplicated-sequences silva-138.1-ssu-nr99-seqs-derep-uniq.qza \
+    --o-dereplicated-taxa silva-138.1-ssu-nr99-tax-derep-uniq.qza
+ 
+
+qiime feature-classifier extract-reads --i-sequences silva-138.1-ssu-nr99-seqs-derep-uniq.qza --p-f-primer ACGGGGYGCAGCAGGCGCGA --p-r-primer GTGCTCCCCCGCCAATTCCT --p-n-jobs 2 --p-read-orientation 'forward' --o-reads silva-138.1-ssu-nr99-seqs-344f-915r.qza
+
+qiime rescript dereplicate --i-sequences silva-138.1-ssu-nr99-seqs-derep-uniq.qza --i-taxa silva-138.1-ssu-nr99-tax-derep-uniq.qza --p-mode 'uniq' --o-dereplicated-sequences silva-138.1-ssu-nr99-seqs-344f-915r-uniq.qza --o-dereplicated-taxa  silva-138.1-ssu-nr99-tax-344f-915r-derep-uniq.qza
+
+qiime feature-classifier fit-classifier-naive-bayes --i-reference-reads silva-138.1-ssu-nr99-seqs-344f-915r-uniq.qza --i-reference-taxonomy silva-138.1-ssu-nr99-tax-344f-915r-derep-uniq.qza --o-classifier silva-classifier-primered.qza
+
+qiime feature-classifier classify-sklearn --i-reads repseqsNoFilt.qza --i-classifier silva-classifier-primered.qza --o-classification taxonomyNoFilt.qza --p-n-jobs 25
+
+qiime metadata tabulate --m-input-file taxonomyNoFilt.qza --o-visualization taxonomyNoFilt.qzv
+
+qiime fragment-insertion sepp --i-representative-sequences repseqsNoFilt.qza --i-reference-database sepp-refs-gg-13-8.qza --o-tree treeNoFilt.qza --o-placements tree-placementsNoFilt.qza --p-threads 25
+
+qiime taxa collapse --i-table tableNoFilt.qza --i-taxonomy taxonomyNoFilt.qza --p-level 6 --o-collapsed-table asv_count.qza
+
+qiime tools export --input-path asv_count.qza --output-path .
+
+biom convert -i feature-table.biom -o asv_count.txt --to-tsv
+
+qiime feature-table relative-frequency --i-table asv_count.qza --o-relative-frequency-table relative_abundance.qza
+
+qiime tools export --input-path relative_abundance.qza --output-path . 
+
+biom convert -i feature-table.biom -o relative_abundance.txt --to-tsv  
