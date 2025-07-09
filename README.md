@@ -17,7 +17,7 @@ This repository supports the manuscript:
 - **`All_KO_hits_archaea_picrust2`**  
   Annotated KEGG Ortholog (KO) hits generated from PICRUSt2 prediction.
 
-- **`Archaea_selected_picrust2`**  
+- **`picrust2_selected_archaea.xlsx`**  
   Selected antimicrobial resistance (AMR) and metal ion transport-related KO hits.
 
 
