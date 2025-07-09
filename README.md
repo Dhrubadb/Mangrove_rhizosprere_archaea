@@ -11,7 +11,7 @@ This repository supports the manuscript:
 - **`Rscript_archaea`**  
   Contains R scripts to reproduce all statistical analyses and visualizations.
 
-- **`DB_qiime2_code`**  
+- **`Archaea_qiime2_code`**  
   Includes QIIME2 command-line scripts used for data processing and analysis.
 
 - **`All_KO_hits_archaea_picrust2`**  
